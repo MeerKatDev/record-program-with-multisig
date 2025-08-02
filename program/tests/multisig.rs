@@ -1,108 +1,158 @@
-// use spl_record::{
-//     multisig::{config::MultisigConfig, processor::*},
-//     state::RecordData,
-//     Proposal,
-//     MAX_SIGNERS,
-// };
-// use solana_program_test::ProgramTest;
-// use solana_program_test::processor;
-// use solana_program::{pubkey::Pubkey, instruction::Instruction};
-// use bytemuck::{Pod, Zeroable};
-// use all2all_controller::multisig::instructions::*;
-// use all2all_controller::processor::process_instruction;
+use {
+    all2all_controller::{
+        multisig::config::MultisigConfig,
+        processor::process_instruction,
+        state::RecordData,
+    },
+    bytemuck::bytes_of,
+    solana_pubkey::Pubkey,
+    solana_instruction::{AccountMeta, Instruction},
+    solana_program_test::*,
+    solana_sdk::{
+        account::Account,
+        signature::{Keypair, Signer},
+        transaction::Transaction,
+    },
+};
 
-// fn program_test() -> ProgramTest {
-//     ProgramTest::new("all2all_controller", id(), processor!(process_instruction))
-// }
+#[tokio::test]
+async fn test_multisig_write_approval_execution() {
+    // === Setup Program Test Environment ===
+    let program_id = Pubkey::new_unique();
+    let mut program_test = ProgramTest::new("all2all_controller", program_id, processor!(process_instruction));
 
-// #[tokio::test]
-// async fn test_multisig_write_executes_on_threshold() {
-//     let mut ctx = program_test().start_with_context().await;
+    // === Create Multisig Config ===
+    let signer1 = Keypair::new();
+    let signer2 = Keypair::new();
+    let signer3 = Keypair::new();
+    let signers = [signer1.pubkey(), signer2.pubkey(), signer3.pubkey()];
 
-//     let mut payer = ctx.payer().clone();
+    let multisig_key = Pubkey::new_unique();
+    let multisig_config = MultisigConfig {
+        version: MultisigConfig::CURRENT_VERSION,
+        threshold: 2,
+        signer_count: 3,
+        signers: {
+            let mut padded = [Pubkey::default(); 10];
+            padded[..3].copy_from_slice(&signers);
+            padded
+        },
+    };
+    program_test.add_account(
+        multisig_key,
+        Account {
+            lamports: 1_000_000,
+            data: bytes_of(&multisig_config).to_vec(),
+            owner: program_id,
+            ..Account::default()
+        },
+    );
 
-//     // Setup: multisig with 3 signers, threshold = 2
-//     let signer_keys: Vec<Pubkey> = (0..3).map(|_| ctx.gen_key()).collect();
-//     let signer_infos = signer_keys
-//         .iter()
-//         .map(|k| ctx.with_signer(*k))
-//         .collect::<Vec<_>>();
+    // === Create Record Account ===
+    let record_key = Pubkey::new_unique();
+    let mut record_data = vec![0u8; 100];
+    let record_header = RecordData {
+        version: 1,
+        authority: multisig_key,
+    };
+    record_data[..bytes_of(&record_header).len()].copy_from_slice(bytes_of(&record_header));
+    program_test.add_account(
+        record_key,
+        Account {
+            lamports: 1_000_000,
+            data: record_data.clone(),
+            owner: program_id,
+            ..Account::default()
+        },
+    );
 
-//     let multisig_data = MultisigConfig {
-//         version: MultisigConfig::CURRENT_VERSION,
-//         threshold: 2,
-//         signer_count: 3,
-//         signers: {
-//             let mut arr = [Pubkey::default(); MAX_SIGNERS];
-//             arr[..3].copy_from_slice(&signer_keys[..3]);
-//             arr
-//         },
-//     };
+    // === Proposal Account ===
+    let proposal_key = Pubkey::new_unique();
+    let proposal_data = vec![0u8; 64 + 8]; // Proposal + payload space
+    program_test.add_account(
+        proposal_key,
+        Account {
+            lamports: 1_000_000,
+            data: proposal_data,
+            owner: program_id,
+            ..Account::default()
+        },
+    );
 
-//     let multisig_account = ctx.create_account(bytemuck::bytes_of(&multisig_data), false).await;
+    // === Start Test Context ===
+    let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
 
-//     // Record account setup
-//     let mut record_bytes = vec![0u8; 100]; // Make sure this fits the written offset
-//     let record_authority = *multisig_account.key();
-//     record_bytes[..33].copy_from_slice(bytemuck::bytes_of(&RecordData {
-//         version: 1,
-//         authority: record_authority,
-//     }));
-//     let record_account = ctx.create_account(&record_bytes, true).await;
+    // === Instruction 1: Initialize Write Proposal ===
+    let payload = b"hello!";
+    let ix = Instruction {
+        program_id,
+        accounts: vec![
+		    AccountMeta::new(payer.pubkey(), true),            // payer is signer & writable
+		    AccountMeta::new(proposal_key, true),              // writable (assume signer if needed)
+		    AccountMeta::new(record_key, true),                // writable
+		    AccountMeta::new_readonly(multisig_key, false),    // readonly, not signer
+        ],
+        data: {
+            let mut d = vec![1]; // instruction_tag = 1
+            d.extend_from_slice(&0u64.to_le_bytes()); // offset = 0
+            d.extend_from_slice(payload); // data to write
+            d
+        },
+    };
+    // not enough signers
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await.unwrap();
 
-//     // Proposal account with room for metadata + payload
-//     let payload = b"hello multisig";
-//     let proposal_space = Proposal::DATA_START_INDEX + payload.len();
-//     let proposal_account = ctx.create_zeroed_account(proposal_space, true).await;
+    // === Instruction 2: Signer1 approves ===
+    let ix = Instruction {
+        program_id,
+        accounts: vec![
+		    AccountMeta::new(signer1.pubkey(), true),       // signer1: signer & writable
+		    AccountMeta::new(proposal_key, false),          // writable, not signer
+		    AccountMeta::new(record_key, false),            // writable, not signer
+		    AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
+        ],
+        data: vec![2], // instruction_tag = 2 (approve)
+    };
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[&payer, &signer1],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await.unwrap();
 
-//     // Submit proposal
-//     process_multisig_write(
-//         &[
-//             proposal_account.clone(),
-//             record_account.clone(),
-//             multisig_account.clone(),
-//             payer.clone(),
-//         ],
-//         0, // offset
-//         payload,
-//     )
-//     .unwrap();
+    // === Instruction 3: Signer2 approves — triggers execution ===
+    let ix = Instruction {
+        program_id,
+        accounts: vec![
+		    AccountMeta::new(signer2.pubkey(), true),       // signer1: signer & writable
+		    AccountMeta::new(proposal_key, false),          // writable, not signer
+		    AccountMeta::new(record_key, false),            // writable, not signer
+		    AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
+        ],
+        data: vec![2], // instruction_tag = 2 (approve)
+    };
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[&payer, &signer2],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await.unwrap();
 
-//     // First approval by signer 0
-//     process_approve_proposal(&[
-//         signer_infos[0].clone(),
-//         proposal_account.clone(),
-//         record_account.clone(),
-//         multisig_account.clone(),
-//     ])
-//     .unwrap();
+    // === Verify Data Was Written ===
+    let record_account = banks_client
+        .get_account(record_key)
+        .await
+        .unwrap()
+        .expect("record account should exist");
 
-//     // At this point, write has NOT occurred yet
-//     let record_data = record_account.try_borrow_data().unwrap();
-//     assert_ne!(
-//         &record_data[RecordData::WRITABLE_START_INDEX..][..payload.len()],
-//         payload
-//     );
-
-//     // Second approval by signer 1 - this should trigger execution
-//     process_approve_proposal(&[
-//         signer_infos[1].clone(),
-//         proposal_account.clone(),
-//         record_account.clone(),
-//         multisig_account.clone(),
-//     ])
-//     .unwrap();
-
-//     // Verify write occurred
-//     let record_data = record_account.try_borrow_data().unwrap();
-//     assert_eq!(
-//         &record_data[RecordData::WRITABLE_START_INDEX..][..payload.len()],
-//         payload
-//     );
-
-//     // Confirm proposal marked as executed
-//     let proposal_data = proposal_account.try_borrow_data().unwrap();
-//     let (meta, _) = proposal_data.split_at(Proposal::DATA_START_INDEX);
-//     let proposal: Proposal = *bytemuck::from_bytes(&meta[..std::mem::size_of::<Proposal>()]);
-//     assert!(proposal.is_executed());
-// }
+    let written = &record_account.data[33..33 + payload.len()];
+    assert_eq!(written, payload);
+}
