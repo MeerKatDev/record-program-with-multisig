@@ -178,7 +178,7 @@ pub fn process_instruction(
             Ok(())
         }
         RecordInstruction::ProposeWrite { offset, data } => {
-            crate::multisig::instructions::process_multisig_write(accounts, offset, data)
+            crate::multisig::instructions::initialize_multisig_write(accounts, offset, data)
         }
 
         RecordInstruction::ApproveProposal => {

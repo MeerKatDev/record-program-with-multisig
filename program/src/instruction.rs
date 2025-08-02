@@ -140,6 +140,9 @@ impl<'a> RecordInstruction<'a> {
                         .try_into()
                         .map_err(|_| ProgramError::InvalidInstructionData)?,
                 ) as usize;
+                if length > data.len() {
+                    return Err(ProgramError::InvalidInstructionData);
+                }
                 Self::ProposeWrite {
                     offset,
                     data: &data[..length],

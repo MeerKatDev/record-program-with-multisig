@@ -8,7 +8,7 @@ use solana_program_error::{ProgramError, ProgramResult};
 use solana_program_pack::IsInitialized;
 
 /// initializes multisig write proposal.
-pub fn process_multisig_write(
+pub fn initialize_multisig_write(
     accounts: &[AccountInfo<'_>],
     offset: u64,
     data: &[u8],
@@ -26,7 +26,7 @@ pub fn process_multisig_write(
     let proposal = Proposal {
         version: Proposal::CURRENT_VERSION,
         bump: 0,            // if not used with PDA, must be zero.
-        instruction_tag: 1, // 1 = Write
+        instruction_tag: 5, // 1 = Write
         executed: 0,
         record_account: *record_account.key,
         multisig: *multisig_account.key,
@@ -55,6 +55,10 @@ pub fn process_approve_proposal(accounts: &[AccountInfo<'_>]) -> ProgramResult {
     // Load proposal
     let mut data = proposal_account.try_borrow_mut_data()?;
     let (meta, payload) = data.split_at_mut(Proposal::DATA_START_INDEX);
+
+    if meta.len() <= std::mem::size_of::<Proposal>() {
+        return Err(ProgramError::InvalidAccountData);
+    }
     let mut proposal: Proposal = *bytemuck::from_bytes(&meta[..std::mem::size_of::<Proposal>()]);
 
     if proposal.is_executed() {
@@ -92,7 +96,7 @@ pub fn process_approve_proposal(accounts: &[AccountInfo<'_>]) -> ProgramResult {
     if proposal.is_ready_to_execute(multisig.threshold) {
         msg!("Threshold reached, executing instruction");
 
-        if proposal.instruction_tag == 1 {
+        if proposal.instruction_tag == 5 {
             let record_data = &mut record_account.try_borrow_mut_data()?;
             let header = bytemuck::from_bytes_mut::<RecordData>(&mut record_data[..33]);
             if !header.is_initialized() {

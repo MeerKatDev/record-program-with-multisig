@@ -88,12 +88,12 @@ async fn test_multisig_write_approval_execution() {
         program_id,
         accounts: vec![
 		    AccountMeta::new(payer.pubkey(), true),            // payer is signer & writable
-		    AccountMeta::new(proposal_key, true),              // writable (assume signer if needed)
-		    AccountMeta::new(record_key, true),                // writable
+		    AccountMeta::new(proposal_key, false),              // writable (assume signer if needed)
+		    AccountMeta::new(record_key, false),                // writable
 		    AccountMeta::new_readonly(multisig_key, false),    // readonly, not signer
         ],
         data: {
-            let mut d = vec![1]; // instruction_tag = 1
+            let mut d = vec![5]; // instruction_tag = 5 (submit)
             d.extend_from_slice(&0u64.to_le_bytes()); // offset = 0
             d.extend_from_slice(payload); // data to write
             d
@@ -117,7 +117,7 @@ async fn test_multisig_write_approval_execution() {
 		    AccountMeta::new(record_key, false),            // writable, not signer
 		    AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
         ],
-        data: vec![2], // instruction_tag = 2 (approve)
+        data: vec![6], // instruction_tag = 6 (approve)
     };
     let tx = Transaction::new_signed_with_payer(
         &[ix],
@@ -136,7 +136,7 @@ async fn test_multisig_write_approval_execution() {
 		    AccountMeta::new(record_key, false),            // writable, not signer
 		    AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
         ],
-        data: vec![2], // instruction_tag = 2 (approve)
+        data: vec![6], // instruction_tag = 6 (approve)
     };
     let tx = Transaction::new_signed_with_payer(
         &[ix],
