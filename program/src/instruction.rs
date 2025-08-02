@@ -65,6 +65,27 @@ pub enum RecordInstruction<'a> {
         /// data
         data_length: u64,
     },
+    /// Propose a multisig write to a record account
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` Proposer (must be signer in multisig config)
+    /// 1. `[writable]` Proposal account (PDA, uninitialized)
+    /// 2. `[]` Multisig config account
+    /// 3. `[]` Target record account
+    ProposeWrite {
+        /// offset in data
+        offset: u64,
+        /// data to be written
+        data: &'a [u8],
+    },
+    /// Approve an existing multisig proposal. If threshold is reached, executes write.
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` Approver
+    /// 1. `[writable]` Proposal account
+    /// 2. `[writable]` Target record account
+    /// 3. `[]` Multisig config account
+    ApproveProposal,
 }
 
 impl<'a> RecordInstruction<'a> {
@@ -107,6 +128,25 @@ impl<'a> RecordInstruction<'a> {
 
                 Self::Reallocate { data_length }
             }
+            5 => {
+                let offset = rest
+                    .get(..U64_BYTES)
+                    .and_then(|slice| slice.try_into().ok())
+                    .map(u64::from_le_bytes)
+                    .ok_or(ProgramError::InvalidInstructionData)?;
+                let (length, data) = rest[U64_BYTES..].split_at(U32_BYTES);
+                let length = u32::from_le_bytes(
+                    length
+                        .try_into()
+                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                ) as usize;
+                Self::ProposeWrite {
+                    offset,
+                    data: &data[..length],
+                }
+            }
+            6 => Self::ApproveProposal,
+
             _ => return Err(ProgramError::InvalidInstructionData),
         })
     }
@@ -128,6 +168,13 @@ impl<'a> RecordInstruction<'a> {
                 buf.push(4);
                 buf.extend_from_slice(&data_length.to_le_bytes());
             }
+            Self::ProposeWrite { offset, data } => {
+                buf.push(5);
+                buf.extend_from_slice(&offset.to_le_bytes());
+                buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
+                buf.extend_from_slice(data);
+            }
+            Self::ApproveProposal => buf.push(6),
         };
         buf
     }

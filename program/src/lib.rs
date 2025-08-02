@@ -4,6 +4,7 @@
 mod entrypoint;
 pub mod error;
 pub mod instruction;
+pub mod multisig;
 pub mod processor;
 pub mod state;
 

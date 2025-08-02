@@ -177,5 +177,12 @@ pub fn process_instruction(
             data_info.resize(needed_account_length)?;
             Ok(())
         }
+        RecordInstruction::ProposeWrite { offset, data } => {
+            crate::multisig::instructions::process_multisig_write(accounts, offset, data)
+        }
+
+        RecordInstruction::ApproveProposal => {
+            crate::multisig::instructions::process_approve_proposal(accounts)
+        }
     }
 }
