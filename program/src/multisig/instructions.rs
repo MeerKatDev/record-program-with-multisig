@@ -14,10 +14,10 @@ pub fn process_multisig_write(
     data: &[u8],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
+    let _payer = next_account_info(account_info_iter)?; // signer
     let proposal_account = next_account_info(account_info_iter)?; // writable
     let record_account = next_account_info(account_info_iter)?; // writable
     let multisig_account = next_account_info(account_info_iter)?; // read-only
-    let _payer = next_account_info(account_info_iter)?; // signer
 
     // Validate multisig config
     let _multisig = MultisigConfig::from_account_info(multisig_account)?;

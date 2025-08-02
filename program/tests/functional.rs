@@ -5,18 +5,18 @@ use {
     solana_program_test::*,
     solana_pubkey::Pubkey,
     solana_rent::Rent,
+    solana_system_interface::instruction as system_instruction,
     solana_sdk::{
         signature::{Keypair, Signer},
-        system_instruction,
         transaction::{Transaction, TransactionError},
     },
-    spl_record::{
+    all2all_controller::{
         error::RecordError, id, instruction, processor::process_instruction, state::RecordData,
     },
 };
 
 fn program_test() -> ProgramTest {
-    ProgramTest::new("spl_record", id(), processor!(process_instruction))
+    ProgramTest::new("all2all_controller", id(), processor!(process_instruction))
 }
 
 async fn initialize_storage_account(
