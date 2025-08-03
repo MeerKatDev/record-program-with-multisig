@@ -12,6 +12,7 @@ no-entrypoint = []
 test-sbf = []
 
 [dependencies]
+multisig = { version = "0.1.0", path = "../multisig" }
 bytemuck = { version = "1.23.1", features = ["derive"] }
 num-derive = "0.4"
 num-traits = "0.2"

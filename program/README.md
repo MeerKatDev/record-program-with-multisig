@@ -1,7 +1,6 @@
 # Record
 
-On-chain program for writing arbitrary data to an account, authorized by an
-owner of the account.
+On-chain program for writing arbitrary data to an account, authorized by a collective of signers via multisig.
 
 ## Audit
 

@@ -144,6 +144,7 @@ name = "all2all_controller"
 version = "0.3.0"
 dependencies = [
  "bytemuck",
+ "multisig",
  "num-derive",
  "num-traits",
  "solana-account-info",
@@ -2556,6 +2557,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "multisig"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "solana-account-info",
+ "solana-msg",
+ "solana-program-error",
+ "solana-program-pack",
+ "solana-pubkey",
 ]
 
 [[package]]

@@ -17,8 +17,8 @@ pub struct Proposal {
     pub instruction_tag: u8,
     /// Has the proposal been executed: 0 - false, 1 - true
     pub executed: u8,
-    /// Record account being targeted
-    pub record_account: Pubkey,
+    /// Account being targeted
+    pub pda_account: Pubkey,
     /// Multisig account controlling the proposal
     pub multisig: Pubkey,
     /// Bitmask of approvals (up to 16 signers)

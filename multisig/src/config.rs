@@ -1,8 +1,8 @@
 //! Multisig configuration data
-use solana_account_info::AccountInfo;
-use solana_program_error::{ProgramError, ProgramResult};
+use bytemuck::{Pod, Zeroable};
 use {
-    bytemuck::{Pod, Zeroable},
+    solana_account_info::AccountInfo,
+    solana_program_error::{ProgramError, ProgramResult},
     solana_program_pack::IsInitialized,
     solana_pubkey::Pubkey,
 };

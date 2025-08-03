@@ -21,6 +21,34 @@ fn check_authority(authority_info: &AccountInfo, expected_authority: &Pubkey) ->
     Ok(())
 }
 
+pub fn multisig_handler(
+    data: &mut [u8],
+    data_payload: &[u8],
+    proposal: &Proposal,
+    record_account: &AccountInfo,
+    multisig: &MultisigConfig,
+) -> ProgramResult {
+    let header = bytemuck::from_bytes_mut::<RecordData>(&mut data[..std::mem::size_of::<RecordData>()]);
+
+    if !header.is_initialized() {
+        return Err(ProgramError::UninitializedAccount);
+    }
+
+    if header.authority != *multisig.key {
+        return Err(ProgramError::IllegalOwner);
+    }
+
+    let offset = proposal.offset as usize;
+    let start = RecordData::WRITABLE_START_INDEX + offset;
+    let end = start + proposal.data_length as usize;
+
+    if end > record_data.len() {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    data[start..end].copy_from_slice(data_payload);
+}
+
 /// Instruction processor
 pub fn process_instruction(
     _program_id: &Pubkey,
@@ -178,11 +206,11 @@ pub fn process_instruction(
             Ok(())
         }
         RecordInstruction::ProposeWrite { offset, data } => {
-            crate::multisig::instructions::initialize_multisig_write(accounts, offset, data)
+            multisig::instructions::initialize_multisig_write(accounts, offset, data)
         }
 
         RecordInstruction::ApproveProposal => {
-            crate::multisig::instructions::process_approve_proposal(accounts)
+            multisig::instructions::process_approve_proposal(accounts, multisig_handler)
         }
     }
 }

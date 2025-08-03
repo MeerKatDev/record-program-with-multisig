@@ -1,11 +1,8 @@
 //! Multisig instructions
-use crate::multisig::{config::MultisigConfig, proposal::Proposal};
-use crate::state::RecordData;
-
+use crate::{config::MultisigConfig, proposal::Proposal};
 use solana_account_info::{next_account_info, AccountInfo};
 use solana_msg::msg;
 use solana_program_error::{ProgramError, ProgramResult};
-use solana_program_pack::IsInitialized;
 
 /// initializes multisig write proposal.
 pub fn initialize_multisig_write(
@@ -16,7 +13,7 @@ pub fn initialize_multisig_write(
     let account_info_iter = &mut accounts.iter();
     let _payer = next_account_info(account_info_iter)?; // signer
     let proposal_account = next_account_info(account_info_iter)?; // writable
-    let record_account = next_account_info(account_info_iter)?; // writable
+    let pda_account = next_account_info(account_info_iter)?; // writable
     let multisig_account = next_account_info(account_info_iter)?; // read-only
 
     // Validate multisig config
@@ -25,10 +22,11 @@ pub fn initialize_multisig_write(
     // Create the proposal state
     let proposal = Proposal {
         version: Proposal::CURRENT_VERSION,
-        bump: 0,            // if not used with PDA, must be zero.
-        instruction_tag: 5, // 1 = Write
+        bump: 0,            // If not used with PDA, must be zero.
+        instruction_tag: 5, // WriteProposal
         executed: 0,
-        record_account: *record_account.key,
+        // PDA connected with the instruction we have to multisign by different parties
+        pda_account: *pda_account.key,
         multisig: *multisig_account.key,
         signer_approvals: 0,
         offset,
@@ -45,11 +43,17 @@ pub fn initialize_multisig_write(
 }
 
 /// Process approve. If threshold is reached, the write is executed.
-pub fn process_approve_proposal(accounts: &[AccountInfo<'_>]) -> ProgramResult {
+pub fn process_approve_proposal<F>(
+    accounts: &[AccountInfo<'_>],
+    pda_handler: F,
+) -> ProgramResult 
+    where 
+    F: Fn(&mut [u8], &[u8], &Proposal, &MultisigConfig) -> ProgramResult {
+
     let account_info_iter = &mut accounts.iter();
     let signer = next_account_info(account_info_iter)?; // signer
     let proposal_account = next_account_info(account_info_iter)?; // writable
-    let record_account = next_account_info(account_info_iter)?; // writable
+    let pda_account = next_account_info(account_info_iter)?; // writable
     let multisig_account = next_account_info(account_info_iter)?; // read-only
 
     // Load proposal
@@ -97,24 +101,10 @@ pub fn process_approve_proposal(accounts: &[AccountInfo<'_>]) -> ProgramResult {
         msg!("Threshold reached, executing instruction");
 
         if proposal.instruction_tag == 5 {
-            let record_data = &mut record_account.try_borrow_mut_data()?;
-            let header = bytemuck::from_bytes_mut::<RecordData>(&mut record_data[..33]);
-            if !header.is_initialized() {
-                return Err(ProgramError::UninitializedAccount);
-            }
-            if header.authority != *multisig_account.key {
-                return Err(ProgramError::IllegalOwner);
-            }
+            let mut_data = &mut pda_account.try_borrow_mut_data()?;
+            
+            pda_handler(mut_data, &payload[..proposal.data_length as usize], &proposal, &multisig)?;
 
-            let offset = proposal.offset as usize;
-            let start = RecordData::WRITABLE_START_INDEX + offset;
-            let end = start + proposal.data_length as usize;
-
-            if end > record_data.len() {
-                return Err(ProgramError::InvalidAccountData);
-            }
-
-            record_data[start..end].copy_from_slice(&payload[..proposal.data_length as usize]);
             proposal.set_executed();
 
             // Write proposal back with executed = true
