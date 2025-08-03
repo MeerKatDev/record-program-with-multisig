@@ -2568,7 +2568,10 @@ dependencies = [
  "solana-msg",
  "solana-program-error",
  "solana-program-pack",
+ "solana-program-test",
  "solana-pubkey",
+ "solana-sdk",
+ "solana-system-interface",
 ]
 
 [[package]]
