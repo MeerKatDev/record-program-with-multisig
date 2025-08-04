@@ -99,8 +99,6 @@ impl<'a> RecordInstruction<'a> {
         const U32_BYTES: usize = 4;
         const U64_BYTES: usize = 8;
 
-        msg!("Input: {:?}", &input);
-
         let (&tag, instruction_data) = input.split_first().ok_or_else(|| {
             msg!("Cannot split correctly input! input: {:?}", &input);
             ProgramError::InvalidInstructionData

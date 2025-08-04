@@ -20,7 +20,7 @@ pub struct Proposal {
     /// Account being targeted
     pub pda_account: Pubkey,
     /// Multisig account controlling the proposal
-    pub multisig: Pubkey,
+    pub multisig_key: Pubkey,
     /// Bitmask of approvals (up to 16 signers)
     pub signer_approvals: u16,
     /// Single-digit discriminator for instruction to be executed
