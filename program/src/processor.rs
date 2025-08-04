@@ -1,5 +1,10 @@
 //! Program state processor
 
+use std::{
+    mem::size_of,
+    ops::Range,
+};
+
 use {
     crate::{error::RecordError, instruction::RecordInstruction, state::RecordData},
     solana_account_info::{next_account_info, AccountInfo},
@@ -21,32 +26,28 @@ fn check_authority(authority_info: &AccountInfo, expected_authority: &Pubkey) ->
     Ok(())
 }
 
+/// callback for multisig
 pub fn multisig_handler(
     data: &mut [u8],
     data_payload: &[u8],
-    proposal: &Proposal,
-    record_account: &AccountInfo,
-    multisig: &MultisigConfig,
+    data_range: Range<usize>,
+    multisig_key: &Pubkey,
 ) -> ProgramResult {
-    let header = bytemuck::from_bytes_mut::<RecordData>(&mut data[..std::mem::size_of::<RecordData>()]);
+    let header = bytemuck::from_bytes_mut::<RecordData>(&mut data[..size_of::<RecordData>()]);
 
     if !header.is_initialized() {
         return Err(ProgramError::UninitializedAccount);
     }
 
-    if header.authority != *multisig.key {
+    if header.authority != *multisig_key {
         return Err(ProgramError::IllegalOwner);
     }
 
-    let offset = proposal.offset as usize;
-    let start = RecordData::WRITABLE_START_INDEX + offset;
-    let end = start + proposal.data_length as usize;
+    let offset = RecordData::WRITABLE_START_INDEX;
 
-    if end > record_data.len() {
-        return Err(ProgramError::InvalidAccountData);
-    }
-
-    data[start..end].copy_from_slice(data_payload);
+    let shifted_range = (data_range.start + offset)..(data_range.end + offset);
+    data[shifted_range].copy_from_slice(data_payload);
+    Ok(())
 }
 
 /// Instruction processor

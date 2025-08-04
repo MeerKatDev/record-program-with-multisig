@@ -1,6 +1,6 @@
 use {
+    multisig::config::MultisigConfig,
     all2all_controller::{
-        multisig::config::MultisigConfig,
         processor::process_instruction,
         state::RecordData,
     },

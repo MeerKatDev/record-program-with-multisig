@@ -3,6 +3,7 @@ use crate::{config::MultisigConfig, proposal::Proposal};
 use solana_account_info::{next_account_info, AccountInfo};
 use solana_msg::msg;
 use solana_program_error::{ProgramError, ProgramResult};
+use solana_pubkey::Pubkey;
 
 /// initializes multisig write proposal.
 pub fn initialize_multisig_write(
@@ -48,7 +49,7 @@ pub fn process_approve_proposal<F>(
     pda_handler: F,
 ) -> ProgramResult 
     where 
-    F: Fn(&mut [u8], &[u8], &Proposal, &MultisigConfig) -> ProgramResult {
+    F: Fn(&mut [u8], &[u8], std::ops::Range<usize>, &Pubkey) -> ProgramResult {
 
     let account_info_iter = &mut accounts.iter();
     let signer = next_account_info(account_info_iter)?; // signer
@@ -102,8 +103,15 @@ pub fn process_approve_proposal<F>(
 
         if proposal.instruction_tag == 5 {
             let mut_data = &mut pda_account.try_borrow_mut_data()?;
-            
-            pda_handler(mut_data, &payload[..proposal.data_length as usize], &proposal, &multisig)?;
+
+            let offset = proposal.offset as usize;
+            let data_range = offset..(offset + proposal.data_length as usize);
+
+            if data_range.end > mut_data.len() {
+                return Err(ProgramError::InvalidAccountData);
+            }
+
+            pda_handler(mut_data, &payload[..proposal.data_length as usize], data_range, &multisig_account.key)?;
 
             proposal.set_executed();
 
