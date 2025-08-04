@@ -44,13 +44,10 @@ pub fn initialize_multisig_write(
 }
 
 /// Process approve. If threshold is reached, the write is executed.
-pub fn process_approve_proposal<F>(
-    accounts: &[AccountInfo<'_>],
-    pda_handler: F,
-) -> ProgramResult 
-    where 
-    F: Fn(&mut [u8], &[u8], std::ops::Range<usize>, &Pubkey) -> ProgramResult {
-
+pub fn process_approve_proposal<F>(accounts: &[AccountInfo<'_>], pda_handler: F) -> ProgramResult
+where
+    F: Fn(&mut [u8], &[u8], std::ops::Range<usize>, &Pubkey) -> ProgramResult,
+{
     let account_info_iter = &mut accounts.iter();
     let signer = next_account_info(account_info_iter)?; // signer
     let proposal_account = next_account_info(account_info_iter)?; // writable
@@ -111,7 +108,12 @@ pub fn process_approve_proposal<F>(
                 return Err(ProgramError::InvalidAccountData);
             }
 
-            pda_handler(mut_data, &payload[..proposal.data_length as usize], data_range, &multisig_account.key)?;
+            pda_handler(
+                mut_data,
+                &payload[..proposal.data_length as usize],
+                data_range,
+                &multisig_account.key,
+            )?;
 
             proposal.set_executed();
 

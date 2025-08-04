@@ -1,15 +1,12 @@
 use {
-    multisig::config::MultisigConfig,
-    all2all_controller::{
-        processor::process_instruction,
-        state::RecordData,
-    },
+    all2all_controller::{processor::process_instruction, state::RecordData},
     bytemuck::bytes_of,
-    solana_pubkey::Pubkey,
-    solana_instruction::{AccountMeta, Instruction},
+    multisig::config::MultisigConfig,
     solana_program_test::*,
+    solana_pubkey::Pubkey,
     solana_sdk::{
         account::Account,
+        instruction::{AccountMeta, Instruction},
         signature::{Keypair, Signer},
         transaction::Transaction,
     },
@@ -19,7 +16,11 @@ use {
 async fn test_multisig_write_approval_execution() {
     // === Setup Program Test Environment ===
     let program_id = Pubkey::new_unique();
-    let mut program_test = ProgramTest::new("all2all_controller", program_id, processor!(process_instruction));
+    let mut program_test = ProgramTest::new(
+        "all2all_controller",
+        program_id,
+        processor!(process_instruction),
+    );
 
     // === Create Multisig Config ===
     let signer1 = Keypair::new();
@@ -80,17 +81,17 @@ async fn test_multisig_write_approval_execution() {
     );
 
     // === Start Test Context ===
-    let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
+    let (banks_client, payer, recent_blockhash) = program_test.start().await;
 
     // === Instruction 1: Initialize Write Proposal ===
     let payload = b"hello!";
     let ix = Instruction {
         program_id,
         accounts: vec![
-		    AccountMeta::new(payer.pubkey(), true),            // payer is signer & writable
-		    AccountMeta::new(proposal_key, false),              // writable (assume signer if needed)
-		    AccountMeta::new(record_key, false),                // writable
-		    AccountMeta::new_readonly(multisig_key, false),    // readonly, not signer
+            AccountMeta::new(payer.pubkey(), true), // payer is signer & writable
+            AccountMeta::new(proposal_key, false),  // writable (assume signer if needed)
+            AccountMeta::new(record_key, false),    // writable
+            AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
         ],
         data: {
             let mut d = vec![5]; // instruction_tag = 5 (submit)
@@ -112,10 +113,10 @@ async fn test_multisig_write_approval_execution() {
     let ix = Instruction {
         program_id,
         accounts: vec![
-		    AccountMeta::new(signer1.pubkey(), true),       // signer1: signer & writable
-		    AccountMeta::new(proposal_key, false),          // writable, not signer
-		    AccountMeta::new(record_key, false),            // writable, not signer
-		    AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
+            AccountMeta::new(signer1.pubkey(), true), // signer1: signer & writable
+            AccountMeta::new(proposal_key, false),    // writable, not signer
+            AccountMeta::new(record_key, false),      // writable, not signer
+            AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
         ],
         data: vec![6], // instruction_tag = 6 (approve)
     };
@@ -131,10 +132,10 @@ async fn test_multisig_write_approval_execution() {
     let ix = Instruction {
         program_id,
         accounts: vec![
-		    AccountMeta::new(signer2.pubkey(), true),       // signer1: signer & writable
-		    AccountMeta::new(proposal_key, false),          // writable, not signer
-		    AccountMeta::new(record_key, false),            // writable, not signer
-		    AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
+            AccountMeta::new(signer2.pubkey(), true), // signer1: signer & writable
+            AccountMeta::new(proposal_key, false),    // writable, not signer
+            AccountMeta::new(record_key, false),      // writable, not signer
+            AccountMeta::new_readonly(multisig_key, false), // readonly, not signer
         ],
         data: vec![6], // instruction_tag = 6 (approve)
     };
