@@ -6,7 +6,8 @@ use {
 };
 
 /// A pending instruction proposal for multisig-controlled actions
-// std mem gives 82?
+/// Instruction data is not included, as it will be included in the account.
+/// This structure represents metadata.
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
 pub struct Proposal {
@@ -14,8 +15,6 @@ pub struct Proposal {
     pub version: u8,
     /// Proposal bump seed
     pub bump: u8,
-    /// Executing instruction code (e.g., 1 for Write)
-    pub instruction_tag: u8,
     /// Has the proposal been executed: 0 - false, 1 - true
     pub executed: u8,
     /// Account being targeted
@@ -24,10 +23,8 @@ pub struct Proposal {
     pub multisig: Pubkey,
     /// Bitmask of approvals (up to 16 signers)
     pub signer_approvals: u16,
-    /// Custom field: offset (used for Write)
-    pub offset: u64,
-    /// Custom field: data length
-    pub data_length: u32,
+    /// Single-digit discriminator for instruction to be executed
+    pub instruction_tag: u8,
 }
 
 impl Proposal {
@@ -35,8 +32,8 @@ impl Proposal {
     pub const CURRENT_VERSION: u8 = 1;
 
     /// Offset in account data where `data` payload begins
-    /// 1 + 1 + 1 + 1 + 32 + 32 + 2 + 8 + 4
-    pub const SIZE: usize = 82;
+    /// 1 + 1 + 1 + 32 + 32 + 2 + 1
+    pub const SIZE: usize = 70;
 
     /// check is this signer already approved.
     pub fn is_approved_by(&self, signer_index: usize) -> bool {

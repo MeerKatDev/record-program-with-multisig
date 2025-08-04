@@ -1,9 +1,8 @@
 //! Program state processor
 
-use std::{
-    mem::size_of,
-    ops::Range,
-};
+use std::mem::size_of;
+
+use multisig::instructions::*;
 
 use {
     crate::{error::RecordError, instruction::RecordInstruction, state::RecordData},
@@ -27,26 +26,38 @@ fn check_authority(authority_info: &AccountInfo, expected_authority: &Pubkey) ->
 }
 
 /// callback for multisig
+/// This should have only instruction-related logic
 pub fn multisig_handler(
-    data: &mut [u8],
-    data_payload: &[u8],
-    data_range: Range<usize>,
+    proposal_data: &[u8],
+    pda_account: &AccountInfo,
     multisig_key: &Pubkey,
 ) -> ProgramResult {
-    let header = bytemuck::from_bytes_mut::<RecordData>(&mut data[..size_of::<RecordData>()]);
+    let dest_data = &mut pda_account.try_borrow_mut_data()?;
 
-    if !header.is_initialized() {
+    let (offset, data_to_write): (usize, &[u8]) = match RecordInstruction::unpack(proposal_data) {
+        Ok(RecordInstruction::ProposeMultiWrite { offset, data }) => (offset as usize, data),
+        _ => return Err(ProgramError::InvalidAccountData),
+    };
+
+    let start = offset + RecordData::WRITABLE_START_INDEX;
+    let end = start + data_to_write.len();
+
+    if end > dest_data.len() {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    let header_meta = bytemuck::from_bytes::<RecordData>(&dest_data[..size_of::<RecordData>()]);
+
+    if !header_meta.is_initialized() {
         return Err(ProgramError::UninitializedAccount);
     }
 
-    if header.authority != *multisig_key {
+    if header_meta.authority != *multisig_key {
         return Err(ProgramError::IllegalOwner);
     }
 
-    let offset = RecordData::WRITABLE_START_INDEX;
+    dest_data[start..end].copy_from_slice(data_to_write);
 
-    let shifted_range = (data_range.start + offset)..(data_range.end + offset);
-    data[shifted_range].copy_from_slice(data_payload);
     Ok(())
 }
 
@@ -173,8 +184,8 @@ pub fn process_instruction(
                 if raw_data.len() < RecordData::WRITABLE_START_INDEX {
                     return Err(ProgramError::InvalidAccountData);
                 }
-                let account_data = bytemuck::try_from_bytes_mut::<RecordData>(
-                    &mut raw_data[..RecordData::WRITABLE_START_INDEX],
+                let account_data = bytemuck::try_from_bytes::<RecordData>(
+                    &raw_data[..RecordData::WRITABLE_START_INDEX],
                 )
                 .map_err(|_| ProgramError::InvalidArgument)?;
                 if !account_data.is_initialized() {
@@ -206,12 +217,11 @@ pub fn process_instruction(
             data_info.resize(needed_account_length)?;
             Ok(())
         }
-        RecordInstruction::ProposeWrite { offset, data } => {
-            multisig::instructions::initialize_multisig_write(accounts, offset, data)
+        RecordInstruction::ProposeMultiWrite { .. } => {
+            let instr_data = instruction.pack();
+            initialize_multisig_write(accounts, &instr_data)
         }
 
-        RecordInstruction::ApproveProposal => {
-            multisig::instructions::process_approve_proposal(accounts, multisig_handler)
-        }
+        RecordInstruction::ApproveProposal => process_approve_proposal(accounts, multisig_handler),
     }
 }

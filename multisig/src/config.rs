@@ -2,10 +2,10 @@
 use bytemuck::{Pod, Zeroable};
 use {
     solana_account_info::AccountInfo,
+    solana_msg::msg,
     solana_program_error::{ProgramError, ProgramResult},
     solana_program_pack::IsInitialized,
     solana_pubkey::Pubkey,
-    solana_msg::msg,
 };
 
 /// group size of signers
@@ -40,9 +40,14 @@ impl MultisigConfig {
         }
 
         let mut signers = [Pubkey::default(); MAX_SIGNERS];
-        signers[..signers_in.len()].copy_from_slice(&signers_in);
+        signers[..signers_in.len()].copy_from_slice(signers_in);
 
-        Ok(Self { version: MultisigConfig::CURRENT_VERSION, threshold, signer_count, signers })
+        Ok(Self {
+            version: MultisigConfig::CURRENT_VERSION,
+            threshold,
+            signer_count,
+            signers,
+        })
     }
 
     /// checks if the signer belongs to the group here

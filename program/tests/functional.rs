@@ -1,18 +1,18 @@
 #![cfg(feature = "test-sbf")]
 
 use {
+    all2all_controller::{
+        error::RecordError, id, instruction, processor::process_instruction, state::RecordData,
+    },
     solana_instruction::{error::InstructionError, AccountMeta, Instruction},
     solana_program_test::*,
     solana_pubkey::Pubkey,
     solana_rent::Rent,
-    solana_system_interface::instruction as system_instruction,
     solana_sdk::{
         signature::{Keypair, Signer},
         transaction::{Transaction, TransactionError},
     },
-    all2all_controller::{
-        error::RecordError, id, instruction, processor::process_instruction, state::RecordData,
-    },
+    solana_system_interface::instruction as system_instruction,
 };
 
 fn program_test() -> ProgramTest {

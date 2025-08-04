@@ -1,12 +1,6 @@
-use all2all_controller::{
-    processor::process_instruction, 
-    state::RecordData
-};
-    
-use multisig::{
-    config::MultisigConfig,
-    proposal::Proposal
-};
+use all2all_controller::{processor::process_instruction, state::RecordData};
+
+use multisig::{config::MultisigConfig, proposal::Proposal};
 
 use bytemuck::bytes_of;
 
@@ -14,9 +8,9 @@ use {
     solana_program_test::*,
     solana_pubkey::Pubkey,
     solana_sdk::{
-        msg,
         account::Account,
         instruction::{AccountMeta, Instruction},
+        msg,
         signature::{Keypair, Signer},
         transaction::Transaction,
     },
@@ -57,14 +51,14 @@ async fn test_multisig_write_approval_execution() {
 
     // === Create Record Account ===
     // data to be copied to another account
-    let mut record_data = vec![0u8; 100];
-    
+
     let record_key = Pubkey::new_unique();
     let record_header = RecordData {
         version: 1,
         authority: multisig_key,
     };
-    
+    let mut record_data = vec![0u8; 100];
+
     let record_bytes = bytes_of(&record_header);
     record_data[..record_bytes.len()].copy_from_slice(record_bytes);
 
@@ -81,7 +75,7 @@ async fn test_multisig_write_approval_execution() {
     // === Proposal Account ===
     // it needs to fit both the proposal metadata and the payload to transfer
     // NOTE the payload to transfer could also represent the instruction which needs
-    // to be executed as part of the multisignature request 
+    // to be executed as part of the multisignature request
     let proposal_key = Pubkey::new_unique();
     {
         let payload_space = record_data.len();
@@ -102,6 +96,7 @@ async fn test_multisig_write_approval_execution() {
 
     // === Instruction 1: Initialize Write Proposal ===
     let payload = b"hello!";
+
     let ix = Instruction {
         program_id,
         accounts: vec![
@@ -115,11 +110,11 @@ async fn test_multisig_write_approval_execution() {
             d.extend_from_slice(&0u64.to_le_bytes()); // offset = 0
             d.extend_from_slice(&(payload.len() as u32).to_le_bytes()); // data length to write
             d.extend_from_slice(payload); // data to write
-            // instr + metadata + execute_data
+                                          // instr + metadata + execute_data
             d
         },
     };
-    
+
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&payer.pubkey()),
@@ -174,6 +169,7 @@ async fn test_multisig_write_approval_execution() {
         .unwrap()
         .expect("record account should exist");
 
-    let written = &record_account.data[33..33 + payload.len()];
+    let start_idx = RecordData::WRITABLE_START_INDEX;
+    let written = &record_account.data[start_idx..start_idx + payload.len()];
     assert_eq!(written, payload);
 }

@@ -6,11 +6,7 @@ use solana_program_error::{ProgramError, ProgramResult};
 use solana_pubkey::Pubkey;
 
 /// initializes multisig write proposal.
-pub fn initialize_multisig_write(
-    accounts: &[AccountInfo<'_>],
-    offset: u64,
-    data: &[u8],
-) -> ProgramResult {
+pub fn initialize_multisig_write(accounts: &[AccountInfo<'_>], instr_data: &[u8]) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let _payer = next_account_info(account_info_iter)?; // signer
     let proposal_account = next_account_info(account_info_iter)?; // writable
@@ -24,21 +20,20 @@ pub fn initialize_multisig_write(
     let proposal = Proposal {
         version: Proposal::CURRENT_VERSION,
         bump: 0,            // If not used with PDA, must be zero.
-        instruction_tag: 5, // WriteProposal
+        instruction_tag: 5, // This is the instruction tag that needs to be run from the multisig given
         executed: 0,
         // PDA connected with the instruction we have to multisign by different parties
         pda_account: *pda_account.key,
         multisig: *multisig_account.key,
+        // this is changed on the way
         signer_approvals: 0,
-        offset,
-        data_length: data.len() as u32,
     };
 
     // Proposal account should be large as metadata (struct data) + actual data
     let mut proposal_data = proposal_account.try_borrow_mut_data()?;
     let (meta, payload) = proposal_data.split_at_mut(Proposal::SIZE);
     meta[..].copy_from_slice(bytemuck::bytes_of(&proposal));
-    payload[..data.len()].copy_from_slice(data);
+    payload[..instr_data.len()].copy_from_slice(instr_data);
 
     Ok(())
 }
@@ -46,7 +41,7 @@ pub fn initialize_multisig_write(
 /// Process approve. If threshold is reached, the write is executed.
 pub fn process_approve_proposal<F>(accounts: &[AccountInfo<'_>], pda_handler: F) -> ProgramResult
 where
-    F: Fn(&mut [u8], &[u8], std::ops::Range<usize>, &Pubkey) -> ProgramResult,
+    F: Fn(&[u8], &AccountInfo, &Pubkey) -> ProgramResult,
 {
     let account_info_iter = &mut accounts.iter();
     let signer = next_account_info(account_info_iter)?; // signer
@@ -54,14 +49,18 @@ where
     let pda_account = next_account_info(account_info_iter)?; // writable
     let multisig_account = next_account_info(account_info_iter)?; // read-only
 
-    // Load proposal
     let mut data = proposal_account.try_borrow_mut_data()?;
     let (meta, payload) = data.split_at_mut(Proposal::SIZE);
 
     if meta.len() < Proposal::SIZE {
-        msg!("meta data is too small! meta len: {}, payload len: {}", meta.len(), payload.len());
+        msg!(
+            "meta data is too small! meta len: {}, payload len: {}",
+            meta.len(),
+            payload.len()
+        );
         return Err(ProgramError::InvalidAccountData);
     }
+
     let mut proposal: Proposal = *bytemuck::from_bytes(&meta[..Proposal::SIZE]);
 
     if proposal.is_executed() {
@@ -93,36 +92,21 @@ where
     }
 
     // Write back updated state
-    meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
-
+    {
+        meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
+    }
     // If threshold reached, execute
     if proposal.is_ready_to_execute(multisig.threshold) {
         msg!("Threshold reached, executing instruction");
 
-        if proposal.instruction_tag == 5 {
-            let mut_data = &mut pda_account.try_borrow_mut_data()?;
+        pda_handler(payload, pda_account, multisig_account.key)?;
 
-            let offset = proposal.offset as usize;
-            let data_range = offset..(offset + proposal.data_length as usize);
+        proposal.set_executed();
 
-            if data_range.end > mut_data.len() {
-                return Err(ProgramError::InvalidAccountData);
-            }
-
-            pda_handler(
-                mut_data,
-                &payload[..proposal.data_length as usize],
-                data_range,
-                &multisig_account.key,
-            )?;
-
-            proposal.set_executed();
-
-            // Write proposal back with executed = true
-            meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
-        } else {
-            msg!("Threshold not yet reached.");
-        }
+        // Write proposal back with executed = true
+        meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
+    } else {
+        msg!("Threshold not yet reached.");
     }
 
     Ok(())

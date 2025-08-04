@@ -4,9 +4,9 @@ use crate::id;
 
 use {
     solana_instruction::{AccountMeta, Instruction},
+    solana_msg::msg,
     solana_program_error::ProgramError,
     solana_pubkey::Pubkey,
-    solana_msg::msg,
 };
 
 /// Instructions supported by the program
@@ -66,6 +66,10 @@ pub enum RecordInstruction<'a> {
         /// data
         data_length: u64,
     },
+
+    /// NOTE: These are Instructions on the client side for using multisignature,
+    ///       so here we can make it specific to the client
+    ///
     /// Propose a multisig write to a record account
     ///
     /// Accounts expected:
@@ -73,7 +77,7 @@ pub enum RecordInstruction<'a> {
     /// 1. `[writable]` Proposal account (PDA, uninitialized)
     /// 2. `[]` Multisig config account
     /// 3. `[]` Target record account
-    ProposeWrite {
+    ProposeMultiWrite {
         /// offset in data
         offset: u64,
         /// data to be written
@@ -97,12 +101,10 @@ impl<'a> RecordInstruction<'a> {
 
         msg!("Input: {:?}", &input);
 
-        let (&tag, instruction_data) = input
-            .split_first()
-            .ok_or_else(|| {
-                msg!("Cannot split correctly input! input: {:?}", &input);
-                ProgramError::InvalidInstructionData
-            })?;
+        let (&tag, instruction_data) = input.split_first().ok_or_else(|| {
+            msg!("Cannot split correctly input! input: {:?}", &input);
+            ProgramError::InvalidInstructionData
+        })?;
         // TODO instead of instruction tags we should use into() from enums
         Ok(match tag {
             0 => Self::Initialize,
@@ -116,14 +118,10 @@ impl<'a> RecordInstruction<'a> {
                         ProgramError::InvalidInstructionData
                     })?;
                 let (length, data) = instruction_data[U64_BYTES..].split_at(U32_BYTES);
-                let length = u32::from_le_bytes(
-                    length
-                        .try_into()
-                        .map_err(|_| {
-                            msg!("Instr 1 - Cannot split by length or sth");
-                            ProgramError::InvalidInstructionData
-                        })?,
-                ) as usize;
+                let length = u32::from_le_bytes(length.try_into().map_err(|_| {
+                    msg!("Instr 1 - Cannot split by length or sth");
+                    ProgramError::InvalidInstructionData
+                })?) as usize;
 
                 Self::Write {
                     offset,
@@ -153,23 +151,20 @@ impl<'a> RecordInstruction<'a> {
                         msg!("instr 5 - Cannot slice instr data correctly!");
                         ProgramError::InvalidInstructionData
                     })?;
-                
-                let (data_len, data) = instruction_data[U64_BYTES..].split_at(U32_BYTES);
-                
-                let data_len = u32::from_le_bytes(
-                    data_len
-                        .try_into()
-                        .map_err(|e| {
-                            msg!("Instr 5 - error: {:?}", e);
-                            ProgramError::InvalidInstructionData
-                        })?,
-                ) as usize;
 
-                if data_len != data.len() {
-                    msg!("Instr 5 - Length required greater than data length.");
+                let (data_len, data) = instruction_data[U64_BYTES..].split_at(U32_BYTES);
+
+                let data_len = u32::from_le_bytes(data_len.try_into().map_err(|e| {
+                    msg!("Instr 5 - error: {:?}", e);
+                    ProgramError::InvalidInstructionData
+                })?) as usize;
+
+                if data_len > data.len() {
+                    msg!("Instr 5 - Length required greater than data length available: data len: {}, data.len(): {}", data_len, data.len());
                     return Err(ProgramError::InvalidInstructionData);
                 }
-                Self::ProposeWrite {
+
+                Self::ProposeMultiWrite {
                     offset,
                     data: &data[..data_len],
                 }
@@ -178,8 +173,8 @@ impl<'a> RecordInstruction<'a> {
 
             _ => {
                 msg!("Unknown Instruction data");
-                return Err(ProgramError::InvalidInstructionData)
-            },
+                return Err(ProgramError::InvalidInstructionData);
+            }
         })
     }
 
@@ -200,7 +195,7 @@ impl<'a> RecordInstruction<'a> {
                 buf.push(4);
                 buf.extend_from_slice(&data_length.to_le_bytes());
             }
-            Self::ProposeWrite { offset, data } => {
+            Self::ProposeMultiWrite { offset, data } => {
                 buf.push(5);
                 buf.extend_from_slice(&offset.to_le_bytes());
                 buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
