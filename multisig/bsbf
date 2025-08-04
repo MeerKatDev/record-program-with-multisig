@@ -1,0 +1,1 @@
+cd ../program && cargo build-sbf && cd ../multisig && cargo build-sbf

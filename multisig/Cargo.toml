@@ -6,7 +6,6 @@ edition = "2021"
 
 [features]
 no-entrypoint = []
-test-sbf = []
 
 [lib]
 crate-type = ["cdylib", "lib"]

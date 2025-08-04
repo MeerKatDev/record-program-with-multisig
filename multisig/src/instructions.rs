@@ -34,10 +34,10 @@ pub fn initialize_multisig_write(
         data_length: data.len() as u32,
     };
 
-    // Write to the proposal account
+    // Proposal account should be large as metadata (struct data) + actual data
     let mut proposal_data = proposal_account.try_borrow_mut_data()?;
-    let (meta, payload) = proposal_data.split_at_mut(Proposal::DATA_START_INDEX);
-    meta[..std::mem::size_of::<Proposal>()].copy_from_slice(bytemuck::bytes_of(&proposal));
+    let (meta, payload) = proposal_data.split_at_mut(Proposal::SIZE);
+    meta[..].copy_from_slice(bytemuck::bytes_of(&proposal));
     payload[..data.len()].copy_from_slice(data);
 
     Ok(())
@@ -56,12 +56,13 @@ where
 
     // Load proposal
     let mut data = proposal_account.try_borrow_mut_data()?;
-    let (meta, payload) = data.split_at_mut(Proposal::DATA_START_INDEX);
+    let (meta, payload) = data.split_at_mut(Proposal::SIZE);
 
-    if meta.len() <= std::mem::size_of::<Proposal>() {
+    if meta.len() < Proposal::SIZE {
+        msg!("meta data is too small! meta len: {}, payload len: {}", meta.len(), payload.len());
         return Err(ProgramError::InvalidAccountData);
     }
-    let mut proposal: Proposal = *bytemuck::from_bytes(&meta[..std::mem::size_of::<Proposal>()]);
+    let mut proposal: Proposal = *bytemuck::from_bytes(&meta[..Proposal::SIZE]);
 
     if proposal.is_executed() {
         return Err(ProgramError::Custom(0)); // Already executed
@@ -92,7 +93,7 @@ where
     }
 
     // Write back updated state
-    meta[..std::mem::size_of::<Proposal>()].copy_from_slice(bytemuck::bytes_of(&proposal));
+    meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
 
     // If threshold reached, execute
     if proposal.is_ready_to_execute(multisig.threshold) {
@@ -118,9 +119,9 @@ where
             proposal.set_executed();
 
             // Write proposal back with executed = true
-            meta[..std::mem::size_of::<Proposal>()].copy_from_slice(bytemuck::bytes_of(&proposal));
+            meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
         } else {
-            return Err(ProgramError::InvalidInstructionData); // unsupported instruction
+            msg!("Threshold not yet reached.");
         }
     }
 

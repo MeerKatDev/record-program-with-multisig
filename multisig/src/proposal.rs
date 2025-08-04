@@ -6,6 +6,7 @@ use {
 };
 
 /// A pending instruction proposal for multisig-controlled actions
+// std mem gives 82?
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
 pub struct Proposal {
@@ -34,7 +35,8 @@ impl Proposal {
     pub const CURRENT_VERSION: u8 = 1;
 
     /// Offset in account data where `data` payload begins
-    pub const DATA_START_INDEX: usize = 64;
+    /// 1 + 1 + 1 + 1 + 32 + 32 + 2 + 8 + 4
+    pub const SIZE: usize = 82;
 
     /// check is this signer already approved.
     pub fn is_approved_by(&self, signer_index: usize) -> bool {

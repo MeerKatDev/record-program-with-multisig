@@ -1,11 +1,12 @@
 //! Program instructions
 
+use crate::id;
+
 use {
-    crate::id,
     solana_instruction::{AccountMeta, Instruction},
     solana_program_error::ProgramError,
     solana_pubkey::Pubkey,
-    std::mem::size_of,
+    solana_msg::msg,
 };
 
 /// Instructions supported by the program
@@ -94,22 +95,34 @@ impl<'a> RecordInstruction<'a> {
         const U32_BYTES: usize = 4;
         const U64_BYTES: usize = 8;
 
-        let (&tag, rest) = input
+        msg!("Input: {:?}", &input);
+
+        let (&tag, instruction_data) = input
             .split_first()
-            .ok_or(ProgramError::InvalidInstructionData)?;
+            .ok_or_else(|| {
+                msg!("Cannot split correctly input! input: {:?}", &input);
+                ProgramError::InvalidInstructionData
+            })?;
+        // TODO instead of instruction tags we should use into() from enums
         Ok(match tag {
             0 => Self::Initialize,
             1 => {
-                let offset = rest
+                let offset = instruction_data
                     .get(..U64_BYTES)
                     .and_then(|slice| slice.try_into().ok())
                     .map(u64::from_le_bytes)
-                    .ok_or(ProgramError::InvalidInstructionData)?;
-                let (length, data) = rest[U64_BYTES..].split_at(U32_BYTES);
+                    .ok_or_else(|| {
+                        msg!("instr 1 - Cannot map correctly!");
+                        ProgramError::InvalidInstructionData
+                    })?;
+                let (length, data) = instruction_data[U64_BYTES..].split_at(U32_BYTES);
                 let length = u32::from_le_bytes(
                     length
                         .try_into()
-                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                        .map_err(|_| {
+                            msg!("Instr 1 - Cannot split by length or sth");
+                            ProgramError::InvalidInstructionData
+                        })?,
                 ) as usize;
 
                 Self::Write {
@@ -120,37 +133,53 @@ impl<'a> RecordInstruction<'a> {
             2 => Self::SetAuthority,
             3 => Self::CloseAccount,
             4 => {
-                let data_length = rest
+                let data_length = instruction_data
                     .get(..U64_BYTES)
                     .and_then(|slice| slice.try_into().ok())
                     .map(u64::from_le_bytes)
-                    .ok_or(ProgramError::InvalidInstructionData)?;
+                    .ok_or_else(|| {
+                        msg!("instr 4 - Cannot slice instr data correctly!");
+                        ProgramError::InvalidInstructionData
+                    })?;
 
                 Self::Reallocate { data_length }
             }
             5 => {
-                let offset = rest
+                let offset = instruction_data
                     .get(..U64_BYTES)
                     .and_then(|slice| slice.try_into().ok())
                     .map(u64::from_le_bytes)
-                    .ok_or(ProgramError::InvalidInstructionData)?;
-                let (length, data) = rest[U64_BYTES..].split_at(U32_BYTES);
-                let length = u32::from_le_bytes(
-                    length
+                    .ok_or_else(|| {
+                        msg!("instr 5 - Cannot slice instr data correctly!");
+                        ProgramError::InvalidInstructionData
+                    })?;
+                
+                let (data_len, data) = instruction_data[U64_BYTES..].split_at(U32_BYTES);
+                
+                let data_len = u32::from_le_bytes(
+                    data_len
                         .try_into()
-                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                        .map_err(|e| {
+                            msg!("Instr 5 - error: {:?}", e);
+                            ProgramError::InvalidInstructionData
+                        })?,
                 ) as usize;
-                if length > data.len() {
+
+                if data_len != data.len() {
+                    msg!("Instr 5 - Length required greater than data length.");
                     return Err(ProgramError::InvalidInstructionData);
                 }
                 Self::ProposeWrite {
                     offset,
-                    data: &data[..length],
+                    data: &data[..data_len],
                 }
             }
             6 => Self::ApproveProposal,
 
-            _ => return Err(ProgramError::InvalidInstructionData),
+            _ => {
+                msg!("Unknown Instruction data");
+                return Err(ProgramError::InvalidInstructionData)
+            },
         })
     }
 
