@@ -29,10 +29,10 @@ fn check_authority(authority_info: &AccountInfo, expected_authority: &Pubkey) ->
 /// This should have only instruction-related logic
 pub fn multisig_handler(
     proposal_data: &[u8],
-    pda_account: &AccountInfo,
+    client_account: &AccountInfo,
     multisig_key: &Pubkey,
 ) -> ProgramResult {
-    let dest_data = &mut pda_account.try_borrow_mut_data()?;
+    let dest_data = &mut client_account.try_borrow_mut_data()?;
 
     let (offset, data_to_write): (usize, &[u8]) = match RecordInstruction::unpack(proposal_data) {
         Ok(RecordInstruction::ProposeMultiWrite { offset, data }) => (offset as usize, data),

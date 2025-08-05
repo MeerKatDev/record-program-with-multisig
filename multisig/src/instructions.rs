@@ -10,7 +10,7 @@ pub fn initialize_multisig_write(accounts: &[AccountInfo<'_>], instr_data: &[u8]
     let account_info_iter = &mut accounts.iter();
     let _payer = next_account_info(account_info_iter)?; // signer
     let proposal_account = next_account_info(account_info_iter)?; // writable
-    let pda_account = next_account_info(account_info_iter)?; // writable
+    let client_account = next_account_info(account_info_iter)?; // writable
     let multisig_account = next_account_info(account_info_iter)?; // read-only
 
     // Validate multisig config
@@ -23,7 +23,7 @@ pub fn initialize_multisig_write(accounts: &[AccountInfo<'_>], instr_data: &[u8]
         instruction_tag: 5, // This is the instruction tag that needs to be run from the multisig given
         executed: 0,
         // PDA connected with the instruction we have to multisign by different parties
-        pda_account: *pda_account.key,
+        client_account: *client_account.key,
         multisig_key: *multisig_account.key,
         // this is changed on the way
         signer_approvals: 0,
@@ -56,7 +56,7 @@ where
     let account_info_iter = &mut accounts.iter();
     let signer = next_account_info(account_info_iter)?; // signer
     let proposal_account = next_account_info(account_info_iter)?; // writable
-    let pda_account = next_account_info(account_info_iter)?; // writable
+    let client_account = next_account_info(account_info_iter)?; // writable
     let multisig_account = next_account_info(account_info_iter)?; // read-only
 
     let mut data = proposal_account.try_borrow_mut_data()?;
@@ -110,7 +110,7 @@ where
     if proposal.is_ready_to_execute(multisig.threshold) {
         msg!("Threshold reached, executing instruction");
 
-        pda_handler(payload, pda_account, multisig_account.key)?;
+        pda_handler(payload, client_account, multisig_account.key)?;
 
         proposal.set_executed();
 
