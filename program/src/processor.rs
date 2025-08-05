@@ -1,7 +1,6 @@
 //! Program state processor
 
 use std::mem::size_of;
-use crate::id;
 use multisig::instructions::*;
 
 use {
@@ -33,7 +32,7 @@ pub fn multisig_handler(
     multisig_key: &Pubkey,
 ) -> ProgramResult {
     // client_account ownership needs to be verified
-    // if *client_account.owner != id() {
+    // if *client_account.owner != crate::id() {
     //     msg!("Client account is not owned by this program! {}, {}", *client_account.owner, id());
     //     return Err(ProgramError::IllegalOwner);
     // }

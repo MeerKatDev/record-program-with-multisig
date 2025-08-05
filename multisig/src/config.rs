@@ -65,7 +65,12 @@ impl MultisigConfig {
             return Err(ProgramError::InvalidAccountData);
         }
 
-        Ok(*bytemuck::from_bytes::<Self>(&data[..self_size]))
+        let deserialized = *bytemuck::try_from_bytes::<Self>(&data[..self_size]).map_err(|e| {
+            msg!("Invalid config deserialization: {:?}", e);
+            ProgramError::InvalidArgument
+        })?;
+
+        Ok(deserialized)
     }
 
     /// verifies that all signatures are in place

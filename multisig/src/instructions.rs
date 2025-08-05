@@ -8,10 +8,32 @@ use solana_pubkey::Pubkey;
 /// initializes multisig write proposal.
 pub fn initialize_multisig_write(accounts: &[AccountInfo<'_>], instr_data: &[u8]) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
-    let _payer = next_account_info(account_info_iter)?; // signer
+    let payer = next_account_info(account_info_iter)?; // signer
+
+    if !payer.is_signer {
+        msg!("Payer is not a signer!");
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
     let proposal_account = next_account_info(account_info_iter)?; // writable
     let client_account = next_account_info(account_info_iter)?; // writable
+
+    if !proposal_account.is_writable {
+        msg!("Proposal account must be writable");
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    if !client_account.is_writable {
+        msg!("Client account must be writable");
+        return Err(ProgramError::InvalidAccountData);
+    }
+
     let multisig_account = next_account_info(account_info_iter)?; // read-only
+
+    if multisig_account.is_writable {
+        msg!("Multisig account should be read-only");
+        return Err(ProgramError::InvalidAccountData);
+    }
 
     // Validate multisig config
     let _multisig = MultisigConfig::from_account_info(multisig_account)?;
@@ -66,11 +88,15 @@ where
 
     let (meta, payload) = data.split_at_mut(Proposal::SIZE);
 
-    let mut proposal: Proposal = *bytemuck::from_bytes(&meta[..Proposal::SIZE]);
+    let mut proposal: Proposal = *bytemuck::try_from_bytes::<Proposal>(&meta[..Proposal::SIZE])
+        .map_err(|e| {
+            msg!("Invalid proposal deserialization: {:?}", e);
+            ProgramError::InvalidArgument
+        })?;
 
     if proposal.is_executed() {
         msg!("Proposal was already executed!");
-        return Err(ProgramError::Custom(0)); // Already executed
+        return Err(ProgramError::InvalidAccountData); // Already executed
     }
 
     if multisig_account.key != &proposal.multisig_key {
