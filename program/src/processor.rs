@@ -217,10 +217,7 @@ pub fn process_instruction(
             data_info.resize(needed_account_length)?;
             Ok(())
         }
-        RecordInstruction::ProposeMultiWrite { .. } => {
-            let instr_data = instruction.pack();
-            initialize_multisig_write(accounts, &instr_data)
-        }
+        RecordInstruction::ProposeMultiWrite { .. } => initialize_multisig_write(accounts, &instruction.pack()),
 
         RecordInstruction::ApproveProposal => process_approve_proposal(accounts, multisig_handler),
     }
