@@ -32,9 +32,9 @@ pub fn initialize_multisig_write(accounts: &[AccountInfo<'_>], instr_data: &[u8]
     // Proposal account should be large as metadata (struct data) + actual data
     let mut proposal_data = proposal_account.try_borrow_mut_data()?;
     let (meta, payload) = proposal_data.split_at_mut(Proposal::SIZE);
-    
+
     let new_meta_bytes = bytemuck::bytes_of(&proposal);
-    
+
     if new_meta_bytes.len() > meta.len() {
         return Err(ProgramError::InvalidInstructionData);
     }
