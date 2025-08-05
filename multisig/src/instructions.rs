@@ -75,10 +75,17 @@ where
     let mut proposal: Proposal = *bytemuck::from_bytes(&meta[..Proposal::SIZE]);
 
     if proposal.is_executed() {
+        msg!("Proposal was already executed!");
         return Err(ProgramError::Custom(0)); // Already executed
     }
 
     if multisig_account.key != &proposal.multisig_key {
+        msg!("Multisignature accounts don't match!");
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    if client_account.key != &proposal.client_account {
+        msg!("Client accounts don't match!");
         return Err(ProgramError::InvalidArgument);
     }
 
