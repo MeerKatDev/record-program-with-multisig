@@ -16,18 +16,12 @@ pub fn initialize_multisig_write(accounts: &[AccountInfo<'_>], instr_data: &[u8]
     // Validate multisig config
     let _multisig = MultisigConfig::from_account_info(multisig_account)?;
 
-    // Create the proposal state
-    let proposal = Proposal {
-        version: Proposal::CURRENT_VERSION,
-        bump: 0,            // If not used with PDA, must be zero.
-        instruction_tag: 5, // This is the instruction tag that needs to be run from the multisig given
-        executed: 0,
-        // PDA connected with the instruction we have to multisign by different parties
-        client_account: *client_account.key,
-        multisig_key: *multisig_account.key,
-        // this is changed on the way
-        signer_approvals: 0,
-    };
+    let instruction_tag = instr_data
+        .first()
+        .ok_or(ProgramError::InvalidInstructionData)?;
+
+    // Create the proposal metadata
+    let proposal = Proposal::new(*instruction_tag, *client_account.key, *multisig_account.key);
 
     // Proposal account should be large as metadata (struct data) + actual data
     let mut proposal_data = proposal_account.try_borrow_mut_data()?;

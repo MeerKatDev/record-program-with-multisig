@@ -13,18 +13,16 @@ use {
 pub struct Proposal {
     /// Struct version
     pub version: u8,
-    /// Proposal bump seed
-    pub bump: u8,
     /// Has the proposal been executed: 0 - false, 1 - true
     pub executed: u8,
+    /// Single-digit discriminator for instruction to be executed
+    pub instruction_tag: u8,
+    /// Bitmask of approvals (up to 16 signers)
+    pub signer_approvals: u16,
     /// Account being targeted
     pub client_account: Pubkey,
     /// Multisig account controlling the proposal
     pub multisig_key: Pubkey,
-    /// Bitmask of approvals (up to 16 signers)
-    pub signer_approvals: u16,
-    /// Single-digit discriminator for instruction to be executed
-    pub instruction_tag: u8,
 }
 
 impl Proposal {
@@ -32,8 +30,19 @@ impl Proposal {
     pub const CURRENT_VERSION: u8 = 1;
 
     /// Offset in account data where `data` payload begins
-    /// 1 + 1 + 1 + 32 + 32 + 2 + 1
-    pub const SIZE: usize = 70;
+    /// 1 + 1 + 1 + 2 + 32 + 32
+    pub const SIZE: usize = 69;
+
+    pub fn new(instruction_tag: u8, client_account: Pubkey, multisig_key: Pubkey) -> Self {
+        Self {
+            version: Self::CURRENT_VERSION,
+            executed: 0,
+            signer_approvals: 0,
+            instruction_tag,
+            client_account,
+            multisig_key,
+        }
+    }
 
     /// check is this signer already approved.
     pub fn is_approved_by(&self, signer_index: usize) -> bool {

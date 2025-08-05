@@ -1,7 +1,7 @@
 //! Program state processor
 
 use std::mem::size_of;
-
+use crate::id;
 use multisig::instructions::*;
 
 use {
@@ -32,6 +32,12 @@ pub fn multisig_handler(
     client_account: &AccountInfo,
     multisig_key: &Pubkey,
 ) -> ProgramResult {
+    // client_account ownership needs to be verified
+    // if *client_account.owner != id() {
+    //     msg!("Client account is not owned by this program! {}, {}", *client_account.owner, id());
+    //     return Err(ProgramError::IllegalOwner);
+    // }
+
     let dest_data = &mut client_account.try_borrow_mut_data()?;
 
     let (offset, data_to_write): (usize, &[u8]) = match RecordInstruction::unpack(proposal_data) {

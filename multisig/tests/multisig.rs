@@ -1,8 +1,6 @@
 use all2all_controller::{processor::process_instruction, state::RecordData};
-
-use multisig::{config::MultisigConfig, proposal::Proposal};
-
 use bytemuck::bytes_of;
+use multisig::{config::MultisigConfig, proposal::Proposal};
 
 use {
     solana_program_test::*,
