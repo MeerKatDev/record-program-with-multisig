@@ -43,7 +43,12 @@ pub fn initialize_multisig_write(accounts: &[AccountInfo<'_>], instr_data: &[u8]
         .ok_or(ProgramError::InvalidInstructionData)?;
 
     // Create the proposal metadata
-    let proposal = Proposal::new(*instruction_tag, *client_account.key, *multisig_account.key);
+    let proposal = Proposal::new(
+        *instruction_tag,
+        *client_account.key,
+        *multisig_account.key,
+        instr_data,
+    );
 
     // Proposal account should be large as metadata (struct data) + actual data
     let mut proposal_data = proposal_account.try_borrow_mut_data()?;
@@ -99,6 +104,11 @@ where
         return Err(ProgramError::InvalidAccountData); // Already executed
     }
 
+    if !proposal.is_instruction_data_correct(payload) {
+        msg!("Invalid approving instruction data!");
+        return Err(ProgramError::InvalidAccountData);
+    }
+
     if multisig_account.key != &proposal.multisig_key {
         msg!("Multisignature accounts don't match!");
         return Err(ProgramError::InvalidArgument);
@@ -126,13 +136,9 @@ where
     let updated = proposal.approve(signer_index);
     if !updated {
         msg!("Signer already approved");
-        return Ok(());
+        return Err(ProgramError::InvalidArgument);
     }
 
-    // Write back updated state
-    {
-        meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
-    }
     // If threshold reached, execute
     if proposal.is_ready_to_execute(multisig.threshold) {
         msg!("Threshold reached, executing instruction");
@@ -140,11 +146,11 @@ where
         pda_handler(payload, client_account, multisig_account.key)?;
 
         proposal.set_executed();
-
-        meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
     } else {
-        msg!("Threshold not yet reached.");
+        msg!("Updating proposal, threshold not yet reached.");
     }
+
+    meta[..Proposal::SIZE].copy_from_slice(bytemuck::bytes_of(&proposal));
 
     Ok(())
 }

@@ -2566,6 +2566,7 @@ dependencies = [
  "all2all_controller",
  "bytemuck",
  "solana-account-info",
+ "solana-keccak-hasher",
  "solana-msg",
  "solana-program-error",
  "solana-program-pack",

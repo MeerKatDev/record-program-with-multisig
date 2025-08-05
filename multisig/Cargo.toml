@@ -18,6 +18,7 @@ solana-program-error = "2.2.2"
 solana-program-pack = "2.2.1"
 solana-msg = "2.2.1"
 solana-pubkey = { version = "2.4.0", features = ["bytemuck"] }
+solana-keccak-hasher = "2.2.1"
 
 [dev-dependencies]
 all2all_controller = { version = "0.3.0", path = "../program" }

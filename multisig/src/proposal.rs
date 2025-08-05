@@ -1,6 +1,7 @@
 //! Multisig proposal data
 use {
     bytemuck::{Pod, Zeroable},
+    solana_keccak_hasher::hash,
     solana_program_pack::IsInitialized,
     solana_pubkey::Pubkey,
 };
@@ -23,6 +24,8 @@ pub struct Proposal {
     pub client_account: Pubkey,
     /// Multisig account controlling the proposal
     pub multisig_key: Pubkey,
+    /// Data hash
+    pub hashed_data: [u8; 32],
 }
 
 impl Proposal {
@@ -30,10 +33,17 @@ impl Proposal {
     pub const CURRENT_VERSION: u8 = 1;
 
     /// Offset in account data where `data` payload begins
-    /// 1 + 1 + 1 + 2 + 32 + 32
-    pub const SIZE: usize = 69;
+    /// 1 + 1 + 1 + 2 + 32 + 32 + 32
+    pub const SIZE: usize = 101;
 
-    pub fn new(instruction_tag: u8, client_account: Pubkey, multisig_key: Pubkey) -> Self {
+    pub fn new(
+        instruction_tag: u8,
+        client_account: Pubkey,
+        multisig_key: Pubkey,
+        instr_data: &[u8],
+    ) -> Self {
+        let hashed_data = hash(Self::trim_trailing_zeros_slice(instr_data)).0;
+
         Self {
             version: Self::CURRENT_VERSION,
             executed: 0,
@@ -41,7 +51,21 @@ impl Proposal {
             instruction_tag,
             client_account,
             multisig_key,
+            hashed_data,
         }
+    }
+
+    fn trim_trailing_zeros_slice(data: &[u8]) -> &[u8] {
+        let mut end = data.len();
+        while end > 0 && data[end - 1] == 0 {
+            end -= 1;
+        }
+        &data[..end]
+    }
+
+    pub fn is_instruction_data_correct(&self, instr_data: &[u8]) -> bool {
+        let hashed_data = hash(Self::trim_trailing_zeros_slice(instr_data)).0;
+        self.hashed_data == hashed_data
     }
 
     /// check is this signer already approved.
@@ -70,7 +94,11 @@ impl Proposal {
     }
 
     /// set as executed
+    /// if it's already one, it means that someone is manipulating things
     pub fn set_executed(&mut self) {
+        if self.executed == 1 {
+            panic!("Bad error! This should never ever happen!");
+        }
         self.executed = 1;
     }
 
